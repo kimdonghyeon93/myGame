@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>끝말잇기 게임</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f3f4f6;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .chat-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        .chat-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .chat-container::-webkit-scrollbar-thumb {
+            background-color: #d1d5db;
+            border-radius: 10px;
+        }
+
+        .slide-up {
+            animation: slideUp 0.3s ease-out forwards;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .shake {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+    </style>
+</head>
+<body class="h-screen w-full flex items-center justify-center bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100">
+
+    <!-- Mobile App Container -->
+    <div class="w-full max-w-md h-full sm:h-[85vh] sm:rounded-[2rem] sm:shadow-2xl bg-white flex flex-col overflow-hidden relative border border-gray-100">
+        
+        <!-- Header -->
+        <header class="bg-white/80 backdrop-blur-md px-6 py-4 flex items-center justify-between border-b border-gray-100 z-10 sticky top-0">
+            <div>
+                <h1 class="text-xl font-bold text-gray-800 tracking-tight">🧠 끝말잇기 배틀</h1>
+                <p class="text-xs text-gray-500 mt-1 font-medium" id="score-display">현재 점수: <span class="text-indigo-600 font-bold">0</span>점</p>
+            </div>
+            <button onclick="restartGame()" class="p-2 bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200 transition-colors" title="새 게임">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            </button>
+        </header>
+
+        <!-- Game Info / Current Word -->
+        <div class="px-6 py-5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white flex flex-col items-center justify-center shrink-0 shadow-inner">
+            <p class="text-indigo-100 text-sm font-medium mb-1">제시어</p>
+            <div class="text-4xl font-black tracking-widest drop-shadow-md" id="current-word-display">자전거</div>
+            <p class="text-xs text-indigo-200 mt-2 bg-white/20 px-3 py-1 rounded-full"><span id="target-char" class="font-bold text-yellow-300">거</span>(으)로 시작하는 단어!</p>
+        </div>
+
+        <!-- Chat / History Area -->
+        <main class="flex-1 overflow-y-auto p-4 chat-container bg-gray-50 space-y-4" id="chat-history">
+            <!-- Messages will be injected here -->
+        </main>
+
+        <!-- Toast Notification -->
+        <div id="toast" class="absolute bottom-24 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium opacity-0 pointer-events-none transition-opacity duration-300 z-20 shadow-lg whitespace-nowrap">
+            메시지
+        </div>
+
+        <!-- Input Area -->
+        <footer class="bg-white p-4 border-t border-gray-100 z-10 shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+            <form id="word-form" class="flex items-center gap-2 relative">
+                <input 
+                    type="text" 
+                    id="word-input" 
+                    class="flex-1 bg-gray-100 border-none rounded-full px-5 py-3.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-gray-800 font-medium placeholder-gray-400"
+                    placeholder="단어를 입력하세요"
+                    autocomplete="off"
+                    required
+                >
+                <button 
+                    type="submit" 
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white p-3.5 rounded-full transition-colors flex items-center justify-center shadow-md active:scale-95"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                </button>
+            </form>
+        </footer>
+
+        <!-- Game Over Overlay -->
+        <div id="game-over-screen" class="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300">
+            <div class="bg-white p-8 rounded-3xl shadow-2xl text-center transform scale-95 transition-transform duration-300 w-11/12 max-w-sm" id="game-over-modal">
+                <div class="text-5xl mb-4" id="game-over-icon">🏆</div>
+                <h2 class="text-2xl font-black text-gray-800 mb-2" id="game-over-title">게임 종료!</h2>
+                <p class="text-gray-600 mb-6" id="game-over-msg">당신의 승리입니다.</p>
+                <div class="bg-gray-100 rounded-xl p-4 mb-6">
+                    <p class="text-sm text-gray-500">최종 점수</p>
+                    <p class="text-3xl font-bold text-indigo-600" id="final-score">0</p>
+                </div>
+                <button onclick="restartGame()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition-colors active:scale-95 shadow-md">
+                    다시하기
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- 봇 사전 (간소화된 단어 리스트) ---
+        // 실제 게임처럼 보이도록 자주 쓰이는 단어들을 준비했습니다.
+        const botDictionary = [
+            "가방", "가위", "가지", "기차", "거미", "거북이", "거울", "고양이", "구두", "나비", "나무", "나사", "나침반", "노래", "누나", 
+            "다리", "다리미", "도토리", "돼지", "두부", "라디오", "라면", "로봇", "리본", "마늘", "마술", "모자", "무지개", "물고기", 
+            "바나나", "바다", "바지", "박쥐", "반지", "발가락", "배추", "뱀", "버스", "보트", "부채", "사과", "사자", "사탕", "새", 
+            "소방서", "수박", "시계", "신발", "아기", "아이스크림", "안경", "야구", "양말", "어머니", "우산", "우주선", "원숭이", "유리", 
+            "자전거", "장난감", "장갑", "전화기", "접시", "조개", "주스", "지우개", "지도", "창문", "책", "책상", "청소기", "치즈", "카메라", 
+            "컴퓨터", "코끼리", "크레파스", "타조", "태양", "텔레비전", "토끼", "토마토", "파도", "파리", "포도", "피아노", "하늘", "하마", 
+            "학교", "학용품", "할머니", "할아버지", "해바라기", "호랑이", "호수", "휴지", "기러기", "기름", "기름종이", "기자", "기사", "사기꾼",
+            "꾼", "군인", "인간", "간식", "식사", "사건", "건물", "물개", "개미", "미술", "술래잡기", "기분", "분필", "필통", "통장", "장사", 
+            "사진", "진흙", "흙", "먼지", "지구", "구름", "름름", "름", "음악", "악기", "기계", "계단", "단추", "추석", "석류", "류마티스",
+            "스케이트", "트럭", "럭비", "비행기", "기록", "녹음", "음료수", "수건", "건강", "강아지", "지갑", "갑옷", "옷걸이", "이불", "불꽃",
+            "꽃밭", "밭고랑", "랑데부", "부메랑", "랑", "도서관", "관심", "심장", "장미", "미소", "소풍", "풍선", "선물", "물방울", "울타리", 
+            "리코더", "더위", "위험", "험난", "난로", "노인", "인형", "형제", "제비", "비누", "누에", "에어컨", "컨테이너", "너구리", "이빨",
+            // --- 어휘력 대폭 확장 ---
+            "가족", "가을", "거짓말", "고기", "기억", "나이", "다람쥐", "도둑", "마음", "머리", "바람", "사람", "사랑", "우유", "자유", "지구", "하늘", "학교",
+            "가스", "가슴", "가짜", "가치", "각도", "각자", "간판", "간호사", "갈매기", "갈색", "감각", "감기", "감동", "감자", "감정", "갑질", "강물", "강의", 
+            "개구리", "개선", "개인", "거실", "거절", "거품", "건조", "건축", "걸음", "검사", "검은색", "게시판", "게임", "겨울", "결과", "결론", "결석", "결정", "결혼", 
+            "경고", "경기", "경력", "경찰", "경치", "경험", "계란", "계산", "계약", "계절", "계획", "고객", "고급", "고민", "고생", "고속도로", "고장", "고집", "고향", 
+            "골목", "공간", "공공", "공기", "공연", "공원", "공장", "공짜", "공통", "공포", "공항", "과거", "과일", "과자", "과정", "과학", "관계", "관광", "관람", 
+            "관리", "관습", "관점", "관찰", "광고", "광장", "교과서", "교수", "교실", "교육", "교통", "교환", "구경", "구멍", "구별", "구성", "구역", "구입", "구조", 
+            "국가", "국내", "국민", "국수", "국적", "국제", "군대", "궁금증", "권리", "귀신", "규모", "규칙", "그릇", "그림", "극장", "근무", "근육", "글씨", "글자", 
+            "금액", "금지", "급식", "기계", "기관", "기념", "기대", "기둥", "기록", "기본", "기분", "기쁨", "기술", "기억", "기온", "기준", "기초", "기회", "길이", 
+            "김밥", "김치", "깊이", "까마귀", "꼬리", "꽃잎", "꿀벌", "꿈", "끝", "나머지", "나무", "나물", "나비", "나이", "나중", "낚시", "날개", "날씨", "날짜", 
+            "남녀", "남매", "남성", "남자", "남편", "낭비", "낮잠", "내년", "내용", "내일", "냄새", "냉장고", "네모", "넥타이", "노동", "노력", "노선", "노인", "녹차", 
+            "농구", "농담", "농민", "농사", "농촌", "높이", "눈물", "눈빛", "눈썹", "뉴스", "느낌", "능력", "다리", "다양성", "다이어트", "다짐", "단어", "단점", "단체", 
+            "달력", "달빛", "닭고기", "담당", "담배", "답변", "당근", "당장", "대결", "대구", "대답", "대도시", "대부분", "대비", "대상", "대신", "대중", "대책", "대통령", 
+            "대표", "대학", "대한민국", "대화", "대회", "댓글", "도구", "도둑", "도로", "도마", "도서", "도시", "도전", "도장", "도착", "독서", "독일", "독창성", "돈", 
+            "돌멩이", "동네", "동물", "동시", "동영상", "동전", "동창", "동해", "돼지고기", "두뇌", "두려움", "두통", "뒤쪽", "드라마", "디자인", "딸기", "땀", "땅", "떡",
+            "떡볶이", "마당", "마디", "마무리", "마을", "마음", "마지막", "마찰", "마트", "만남", "만두", "만족", "만화", "말씀", "맛", "망치", "맞춤법", "매력", "매장", 
+            "매일", "매주", "메뉴", "메모", "메시지", "며칠", "면접", "명령", "명칭", "모기", "모델", "모래", "모습", "모양", "모임", "목걸이", "목소리", "목욕", "목적", 
+            "목표", "무게", "무기", "무릎", "무리", "무용", "무인도", "묵", "문구", "문법", "문서", "문자", "문제", "문화", "물가", "물건", "물리", "미래", "미용실",
+            // 치명적인 방어/공격 단어들 추가
+            "력사", "역사", "사전", "전기", "기사", "사기", "기름", "름름", "음악", "악기", "기차", "차표", "표지", "지구", "구슬", "슬픔", "픔픔", "쁨", "쁨쁨",
+            "원자", "자석", "석탄", "탄소", "소금", "금속", "속도", "도덕", "덕분", "분위", "위기", "기회", "회사", "사장", "장소", "소방", "방귀", "귀걸이", "이름",
+            "질문", "문장", "장갑", "갑옷", "옷장", "장수", "수명", "명령", "영역", "역할", "할당", "당번", "번개", "개별", "별빛", "빛깔", "깔창", "창문", "문자", "자연",
+            "연기", "기적", "적성", "성격", "격투", "투기", "기능", "능력", "역량", "양심", "심리", "이유", "유리", "이익", "익명", "명성", "성공", "공부", "부자", "자식"
+        ];
+        
+        // --- 시작 단어 풀 (여기서 무작위로 하나 선택됨) ---
+        const startWords = [
+            "자전거", "컴퓨터", "비행기", "우주선", "피아노", "소방차", "해바라기", 
+            "운동장", "놀이터", "도서관", "기차역", "미술관", "수목원", "동물원",
+            "스마트폰", "아이스크림", "햄버거", "지하철", "엘리베이터", "선풍기"
+        ];
+
+        // --- 게임 상태 관리 ---
+        let currentWord = "";
+        let usedWords = [];
+        let score = 0;
+        let isPlayerTurn = true;
+        let isGameOver = false;
+        
+        // 무작위 시작 단어 선택 함수
+        function getRandomStartWord() {
+            return startWords[Math.floor(Math.random() * startWords.length)];
+        }
+
+        // DOM 요소
+        const currentWordDisplay = document.getElementById('current-word-display');
+        const targetCharDisplay = document.getElementById('target-char');
+        const chatHistory = document.getElementById('chat-history');
+        const wordInput = document.getElementById('word-input');
+        const wordForm = document.getElementById('word-form');
+        const scoreDisplay = document.getElementById('score-display').querySelector('span');
+        const toast = document.getElementById('toast');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const gameOverModal = document.getElementById('game-over-modal');
+
+        // 두음법칙 변환 함수 (기본적인 것만 적용)
+        function applyDueum(char) {
+            const rules = {
+                '라': '나', '래': '내', '로': '노', '뢰': '뇌', '루': '누', '르': '느',
+                '랴': '야', '려': '여', '례': '예', '료': '요', '류': '유', '리': '이',
+                '녀': '여', '뇨': '요', '뉴': '유', '니': '이', '녑': '엽'
+            };
+            return rules[char] || char;
+        }
+
+        // 토스트 알림 표시
+        function showToast(msg) {
+            toast.textContent = msg;
+            toast.classList.remove('opacity-0');
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+            }, 2000);
+        }
+
+        // 입력창 흔들기 애니메이션 (에러 시)
+        function shakeInput() {
+            wordInput.classList.remove('shake');
+            void wordInput.offsetWidth; // 리플로우 강제
+            wordInput.classList.add('shake');
+        }
+
+        // 채팅 말풍선 추가
+        function addMessage(word, sender) {
+            const div = document.createElement('div');
+            div.className = `flex w-full slide-up ${sender === 'player' ? 'justify-end' : 'justify-start'}`;
+            
+            const bubble = document.createElement('div');
+            bubble.className = `px-4 py-2.5 rounded-2xl max-w-[80%] shadow-sm ${
+                sender === 'player' 
+                ? 'bg-indigo-600 text-white rounded-tr-sm' 
+                : 'bg-white text-gray-800 border border-gray-100 rounded-tl-sm'
+            }`;
+            
+            const name = document.createElement('div');
+            name.className = `text-[10px] mb-1 font-bold ${sender === 'player' ? 'text-indigo-200 text-right' : 'text-gray-400 text-left'}`;
+            name.textContent = sender === 'player' ? '나' : '컴퓨터';
+            
+            const text = document.createElement('div');
+            text.className = 'font-medium text-sm sm:text-base tracking-wide';
+            text.textContent = word;
+
+            bubble.appendChild(name);
+            bubble.appendChild(text);
+            div.appendChild(bubble);
+            
+            chatHistory.appendChild(div);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        // 상태 업데이트
+        function updateGameState(newWord, sender) {
+            currentWord = newWord;
+            usedWords.push(newWord);
+            
+            // 화면 업데이트
+            currentWordDisplay.textContent = newWord;
+            
+            const lastChar = newWord.slice(-1);
+            const dueumChar = applyDueum(lastChar);
+            
+            if (lastChar !== dueumChar) {
+                targetCharDisplay.textContent = `${lastChar}(${dueumChar})`;
+            } else {
+                targetCharDisplay.textContent = lastChar;
+            }
+
+            addMessage(newWord, sender);
+
+            if (sender === 'player') {
+                score += newWord.length * 10;
+                scoreDisplay.textContent = score;
+            }
+        }
+
+        // 게임 종료 처리
+        function endGame(winner, reason) {
+            isGameOver = true;
+            gameOverScreen.classList.remove('opacity-0', 'pointer-events-none');
+            gameOverModal.classList.remove('scale-95');
+            gameOverModal.classList.add('scale-100');
+            
+            document.getElementById('final-score').textContent = score;
+            document.getElementById('game-over-title').textContent = winner === 'player' ? '🎉 승리했습니다!' : '💀 패배했습니다...';
+            document.getElementById('game-over-title').className = `text-2xl font-black mb-2 ${winner === 'player' ? 'text-indigo-600' : 'text-red-500'}`;
+            document.getElementById('game-over-msg').textContent = reason;
+            document.getElementById('game-over-icon').textContent = winner === 'player' ? '🏆' : '💥';
+            
+            wordInput.disabled = true;
+        }
+
+        // 새 게임 시작
+        window.restartGame = function() {
+            currentWord = getRandomStartWord();
+            usedWords = [currentWord];
+            score = 0;
+            isPlayerTurn = true;
+            isGameOver = false;
+
+            // UI 초기화
+            chatHistory.innerHTML = '';
+            scoreDisplay.textContent = '0';
+            
+            // 제시어 화면 업데이트
+            currentWordDisplay.textContent = currentWord;
+            const lastChar = currentWord.slice(-1);
+            const dueumChar = applyDueum(lastChar);
+            if (lastChar !== dueumChar) {
+                targetCharDisplay.textContent = `${lastChar}(${dueumChar})`;
+            } else {
+                targetCharDisplay.textContent = lastChar;
+            }
+
+            wordInput.value = '';
+            wordInput.disabled = false;
+            
+            // 모달 숨기기
+            gameOverScreen.classList.add('opacity-0', 'pointer-events-none');
+            gameOverModal.classList.add('scale-95');
+            gameOverModal.classList.remove('scale-100');
+            
+            // 초기 메시지
+            addMessage(currentWord, "bot");
+            wordInput.focus();
+        };
+
+        // 봇의 턴
+        function botTurn() {
+            isPlayerTurn = false;
+            wordInput.placeholder = "컴퓨터가 생각 중입니다...";
+            wordInput.disabled = true;
+
+            setTimeout(() => {
+                if (isGameOver) return;
+
+                const lastChar = currentWord.slice(-1);
+                const dueumChar = applyDueum(lastChar);
+                
+                // 봇이 사용할 수 있는 단어 찾기
+                const possibleWords = botDictionary.filter(word => 
+                    (word.startsWith(lastChar) || word.startsWith(dueumChar)) && 
+                    !usedWords.includes(word)
+                );
+
+                if (possibleWords.length > 0) {
+                    // 랜덤으로 단어 선택
+                    const botWord = possibleWords[Math.floor(Math.random() * possibleWords.length)];
+                    updateGameState(botWord, 'bot');
+                    
+                    isPlayerTurn = true;
+                    wordInput.placeholder = "단어를 입력하세요";
+                    wordInput.disabled = false;
+                    wordInput.focus();
+                } else {
+                    // 봇이 단어를 찾지 못함 -> 플레이어 승리
+                    addMessage("...", "bot");
+                    endGame('player', '컴퓨터가 단어를 찾지 못했습니다!');
+                }
+            }, 1000 + Math.random() * 800); // 1~1.8초 사이 지연 (생각하는 척)
+        }
+
+        // 플레이어 입력 처리
+        wordForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            if (!isPlayerTurn || isGameOver) return;
+
+            const inputWord = wordInput.value.trim();
+            wordInput.value = '';
+
+            // 검증 1: 두 글자 이상
+            if (inputWord.length < 2) {
+                showToast("두 글자 이상의 단어를 입력하세요!");
+                shakeInput();
+                return;
+            }
+
+            // 검증 2: 한글만 입력 (간단한 정규식)
+            if (!/^[가-힣]+$/.test(inputWord)) {
+                showToast("올바른 한글 단어만 입력 가능합니다!");
+                shakeInput();
+                return;
+            }
+
+            // 검증 3: 끝말잇기 룰 (마지막 글자 또는 두음법칙 일치)
+            const expectedLastChar = currentWord.slice(-1);
+            const expectedDueumChar = applyDueum(expectedLastChar);
+            const inputFirstChar = inputWord.charAt(0);
+
+            if (inputFirstChar !== expectedLastChar && inputFirstChar !== expectedDueumChar) {
+                showToast(`'${expectedLastChar}' ${expectedLastChar !== expectedDueumChar ? `또는 '${expectedDueumChar}'` : ''}(으)로 시작해야 합니다!`);
+                shakeInput();
+                return;
+            }
+
+            // 검증 4: 중복 확인
+            if (usedWords.includes(inputWord)) {
+                showToast("이미 사용된 단어입니다!");
+                shakeInput();
+                return;
+            }
+
+            // 통과! 상태 업데이트
+            updateGameState(inputWord, 'player');
+            
+            // 봇 턴으로 넘김
+            botTurn();
+        });
+
+        // 초기 설정 실행
+        window.onload = () => {
+            // 새 게임 초기화 로직을 그대로 호출
+            window.restartGame();
+        };
+
+    </script>
+</body>
+</html>
